@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /patients/{uid} {
+      allow read, write: if isSignedIn() && (isOwner(uid) || isAdmin());
+    }
+
+    match /records/{recordId} {
+      allow read: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Doctor' ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.patientId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Doctor' ||
+        isAdmin()
+      );
+      allow update, delete: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    match /documents/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Doctor' ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.patientId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Doctor' ||
+        isAdmin()
+      );
+      allow update, delete: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+  }
+}
